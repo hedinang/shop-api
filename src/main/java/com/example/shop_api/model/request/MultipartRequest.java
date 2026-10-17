@@ -1,8 +1,9 @@
 package com.example.shop_api.model.request;
 
 public record MultipartRequest(
+        String bucket,
         String fileName,
-        long fileSize,
+        int fileSize,
         String contentType
 ) {
 }

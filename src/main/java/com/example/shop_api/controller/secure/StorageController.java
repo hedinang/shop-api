@@ -1,4 +1,4 @@
-package com.example.shop_api.controller.free;
+package com.example.shop_api.controller.secure;
 
 import com.example.shop_api.model.dto.CompleteMultipartDto;
 import com.example.shop_api.model.dto.MultipartDto;
@@ -18,8 +18,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/free/storage")
-public class FreeStorageController {
+@RequestMapping("/secure/storage")
+public class StorageController {
 
     private final StorageService storageService;
 
@@ -30,7 +30,7 @@ public class FreeStorageController {
 
     @PostMapping("/create-part-url")
     public BaseResponse<PartUrlDto> partUrl(@RequestBody PartUrlRequest request) {
-        return Response.toData(storageService.createPartUrl(request.uploadId(), request.objectKey(), request.partNumber()));
+        return Response.toData(storageService.createPartUrl(request));
     }
 
     @PostMapping("/complete")
@@ -40,7 +40,7 @@ public class FreeStorageController {
 
     @PostMapping("/abort")
     public BaseResponse<Void> abort(@RequestBody AbortRequest request) {
-        storageService.abort(request.uploadId(), request.objectKey());
+        storageService.abort(request.bucket(), request.uploadId(), request.objectKey());
         return null;
     }
 }

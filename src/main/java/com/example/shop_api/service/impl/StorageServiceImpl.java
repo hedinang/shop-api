@@ -6,7 +6,9 @@ import com.example.shop_api.model.dto.PartUrlDto;
 import com.example.shop_api.model.request.CompleteMultipartRequest;
 import com.example.shop_api.model.request.CompletedPartRequest;
 import com.example.shop_api.model.request.MultipartRequest;
+import com.example.shop_api.model.request.PartUrlRequest;
 import com.example.shop_api.service.StorageService;
+import com.example.shop_api.util.date.DateUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -35,8 +37,6 @@ public class StorageServiceImpl implements StorageService {
 
     private static final int MAX_PARTS = 10_000;
 
-    @Value("${storage.minio.bucket}")
-    String bucket;
     @Value("${storage.minio.internal-endpoint}")
     String internalEndpoint;
     @Value("${storage.minio.public-endpoint}")
@@ -48,17 +48,17 @@ public class StorageServiceImpl implements StorageService {
     public MultipartDto createMultiPart(MultipartRequest request) {
         validateFile(request);
 
+        String targetBucket = requireBucket(request.bucket());
         String safeFileName = sanitizeFileName(request.fileName());
+        String date = DateUtil.getNowDateFolder();
 
-        String objectKey =
-//                "test/"
-//                        +
-                UUID.randomUUID()
+        String uuid = UUID.randomUUID().toString();
+        String objectKey = uuid
                         + "-"
                         + safeFileName;
 
         CreateMultipartUploadRequest createRequest = CreateMultipartUploadRequest.builder()
-                .bucket(bucket)
+                .bucket(targetBucket)
                 .key(objectKey)
                 .contentType(request.contentType())
                 .build();
@@ -68,25 +68,36 @@ public class StorageServiceImpl implements StorageService {
         int partCount = Math.toIntExact((request.fileSize() + PART_SIZE - 1) / PART_SIZE);
 
         if (partCount > MAX_PARTS) {
-            abort(response.uploadId(), objectKey);
+            abort(targetBucket, response.uploadId(), objectKey);
             throw new IllegalArgumentException("File tạo ra quá nhiều chunk");
         }
 
-        return new MultipartDto(response.uploadId(), objectKey, PART_SIZE, partCount);
+        return new MultipartDto(
+                response.uploadId(),
+                objectKey,
+                PART_SIZE,
+                partCount,
+                request.fileName(),
+                request.fileSize(),
+                request.contentType(),
+                date,
+                uuid,
+                targetBucket
+        );
     }
 
-    public PartUrlDto createPartUrl(String uploadId, String objectKey, int partNumber) {
-        if (partNumber < 1 || partNumber > MAX_PARTS) {
+    public PartUrlDto createPartUrl(PartUrlRequest request) {
+        if (request.partNumber() < 1 || request.partNumber() > MAX_PARTS) {
             throw new IllegalArgumentException(
                     "partNumber không hợp lệ"
             );
         }
 
         UploadPartRequest uploadPartRequest = UploadPartRequest.builder()
-                .bucket(bucket)
-                .key(objectKey)
-                .uploadId(uploadId)
-                .partNumber(partNumber)
+                .bucket(requireBucket(request.bucket()))
+                .key(request.objectKey())
+                .uploadId(request.uploadId())
+                .partNumber(request.partNumber())
                 .build();
 
         UploadPartPresignRequest presignRequest = UploadPartPresignRequest.builder()
@@ -96,7 +107,7 @@ public class StorageServiceImpl implements StorageService {
 
         PresignedUploadPartRequest presigned = s3Presigner.presignUploadPart(presignRequest);
 
-        return new PartUrlDto(partNumber, presigned.url().toString());
+        return new PartUrlDto(request.partNumber(), presigned.url().toString());
     }
 
     public CompleteMultipartDto complete(
@@ -133,7 +144,7 @@ public class StorageServiceImpl implements StorageService {
 
         CompleteMultipartUploadRequest completeRequest =
                 CompleteMultipartUploadRequest.builder()
-                        .bucket(bucket)
+                        .bucket(requireBucket(request.bucket()))
                         .key(request.objectKey())
                         .uploadId(request.uploadId())
                         .multipartUpload(multipartUpload)
@@ -147,7 +158,7 @@ public class StorageServiceImpl implements StorageService {
         return new CompleteMultipartDto(
                 response.bucket() != null
                         ? response.bucket()
-                        : bucket,
+                        : requireBucket(request.bucket()),
 
                 response.key() != null
                         ? response.key()
@@ -159,12 +170,13 @@ public class StorageServiceImpl implements StorageService {
     }
 
     public void abort(
+            String targetBucket,
             String uploadId,
             String objectKey
     ) {
         s3Client.abortMultipartUpload(
                 AbortMultipartUploadRequest.builder()
-                        .bucket(bucket)
+                        .bucket(requireBucket(targetBucket))
                         .key(objectKey)
                         .uploadId(uploadId)
                         .build()
@@ -224,5 +236,13 @@ public class StorageServiceImpl implements StorageService {
                         "[^a-zA-Z0-9._-]",
                         "_"
                 );
+    }
+
+    private String requireBucket(String requestedBucket) {
+        if (!StringUtils.hasText(requestedBucket)) {
+            throw new IllegalArgumentException("Bucket không được để trống");
+        }
+
+        return requestedBucket.trim();
     }
 }

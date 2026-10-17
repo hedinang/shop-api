@@ -80,8 +80,6 @@ public class ResourceServiceImpl implements ResourceService {
     @Override
     @Transactional
     public boolean uploadProfileImage(UploadFileRequest request, User user) {
-        if (user.getAvatar() != null) deleteByResourceId(user.getAvatar());
-
         return userRepository.updateAvatarByUserId(user.getUserId(), request.getAvatar());
     }
 
@@ -412,25 +410,4 @@ public class ResourceServiceImpl implements ResourceService {
         return MessageContentType.FILE.toString();
     }
 
-    private void deleteByResourceId(String resourceId) {
-        Resource resource = resourceRepository.findFirstByResourceId(resourceId);
-        if (resource == null) return;
-
-        try {
-            String subPath = String.format("%s%s", rootFolder, resource.getPath());
-            Path filePath = new File(subPath).toPath();
-
-            if (Files.exists(filePath) && Files.isRegularFile(filePath)) {
-                Files.delete(filePath);
-            } else {
-                log.warn("File not found or not type file: {}", filePath);
-            }
-        } catch (NoSuchFileException e) {
-            log.error("File not found: {}", resource.getFileName(), e);
-        } catch (DirectoryNotEmptyException e) {
-            log.error("Empty folder: {}", resource.getFolder(), e);
-        } catch (IOException e) {
-            log.error("Cannot delete file: {}", resource.getFileName(), e);
-        }
-    }
 }

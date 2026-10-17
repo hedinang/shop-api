@@ -4,6 +4,12 @@ public record MultipartDto(
         String uploadId,
         String objectKey,
         long partSize,
-        int partCount
+        int partCount,
+        String fileName,
+        int fileSize,
+        String contentType,
+        String date,
+        String uuid,
+        String bucket
 ) {
 }
