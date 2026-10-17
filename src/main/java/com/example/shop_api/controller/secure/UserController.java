@@ -39,20 +39,35 @@ public class UserController {
 
     @PostMapping("/list")
     public BaseResponse<Object> getUserList(@RequestBody PageRequest<UserSearch> request, @AuthenticationPrincipal User user) {
+        if (!canManageUsers(user)) {
+            return Response.toError(HttpStatus.FORBIDDEN.value(), "You don't have permission to access");
+        }
         return Response.toData(userService.getUserList(request));
     }
 
     @PostMapping("/store-user")
-    public BaseResponse<Object> getUserList(@RequestBody UserRequest request, @AuthenticationPrincipal User user) {
+    public BaseResponse<Object> storeUser(@RequestBody UserRequest request, @AuthenticationPrincipal User user) {
+        if (!canManageUsers(user)) {
+            return Response.toError(HttpStatus.FORBIDDEN.value(), "You don't have permission to access");
+        }
         return Response.toData(userService.store(request));
     }
 
-    @PostMapping("/reset-password/{userId}")
-    public BaseResponse<String> resetPassword(@PathVariable String userId, @AuthenticationPrincipal User user) {
-//        if (!Objects.equals(user.getRoleCode(), "ADMIN")) return new BaseResponse<>(403, "Dont have permission", null);
+    @PostMapping("/update")
+    public BaseResponse<Object> updateUser(@RequestBody UserRequest request, @AuthenticationPrincipal User user) {
+        if (!canManageUsers(user)) {
+            return Response.toError(HttpStatus.FORBIDDEN.value(), "You don't have permission to access");
+        }
+        return Response.toData(userService.update(request));
+    }
 
+    @PostMapping("/reset-password/{userId}")
+    public BaseResponse<Object> resetPassword(@PathVariable String userId, @AuthenticationPrincipal User user) {
+        if (!canManageUsers(user)) {
+            return Response.toError(HttpStatus.FORBIDDEN.value(), "You don't have permission to access");
+        }
         userService.resetPassword(userId, user);
-        return new BaseResponse<>(200, "Delete user successfully", null);
+        return new BaseResponse<>(200, "Password reset successfully", null);
     }
 
     @PostMapping("/upload-profile-image")
@@ -75,5 +90,9 @@ public class UserController {
         } catch (Exception e) {
             return Response.toError(HttpStatus.INTERNAL_SERVER_ERROR.value(), "An unexpected error occurred");
         }
+    }
+
+    private boolean canManageUsers(User user) {
+        return user != null && ("ADMIN".equals(user.getRole()) || "SUPER_ADMIN".equals(user.getRole()));
     }
 }

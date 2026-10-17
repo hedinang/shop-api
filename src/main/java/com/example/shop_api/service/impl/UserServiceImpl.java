@@ -114,56 +114,47 @@ public class UserServiceImpl implements UserService, UserDetailsService {
     }
 
     public User update(UserRequest request) {
-        if (request.getUserId() == null || request.getUsername() == null || request.getRole() == null || request.getPassword() == null)
-            return null;
-        User user = userRepository.findByUserId(request.getUserId()).orElseGet(null);
-
-        if (user == null) throw new ServiceException(ErrorCode.E404.code(), "User not found");
-
-        user.setUsername(request.getUsername());
-        user.setPassword(request.getPassword());
-        user.setRole(request.getRole());
-        return userRepository.save(user);
+        if (request == null || request.getUserId() == null || request.getUserId().isBlank()) {
+            throw new ServiceException(ErrorCode.E401.code(), "UserId must not be blank");
+        }
+        return store(request);
     }
 
     public User store(UserRequest request) {
-        if (request.getUsername() == null || request.getRole() == null)
-            return null;
+        if (request == null || request.getUsername() == null || request.getUsername().isBlank()
+                || request.getRole() == null || request.getRole().isBlank()) {
+            throw new ServiceException(ErrorCode.E401.code(), "Username and role must not be blank");
+        }
 
-        User existedUsername = userRepository.findByUsername(request.getUsername());
+        String username = request.getUsername().trim();
+        User existedUsername = userRepository.findByUsername(username);
         User user;
 
         if (request.getUserId() == null) {
-            //check existed Username
             if (existedUsername != null) {
-                return null;
+                throw new ServiceException(ErrorCode.E401.code(), "Username already exists");
             }
 
             user = userMapper.userRequestToUser(request);
-            user.setUserId(request.getUserId());
+            user.setUsername(username);
             BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
             String encodedPassword = passwordEncoder.encode("Qwer123!");
             user.setPassword(encodedPassword);
             user.setUserId(StringUtil.generateId());
-            user.setStatus("ACTIVE");
+            user.setStatus(request.getStatus() == null ? "ACTIVE" : request.getStatus());
         } else {
-            User currentUser = userRepository.findByUserId(request.getUserId()).orElseGet(null);
+            User currentUser = userRepository.findByUserId(request.getUserId())
+                    .orElseThrow(() -> new ServiceException(ErrorCode.E404.code(), "User not found"));
 
-            if (currentUser == null) {
-                return null;
-            }
-
-            if (existedUsername != null && !Objects.equals(currentUser.getUsername(), request.getUsername())
-                    && !Objects.equals(currentUser.getUsername(), existedUsername.getUsername())) {
-                return null;
+            if (existedUsername != null && !Objects.equals(currentUser.getUserId(), existedUsername.getUserId())) {
+                throw new ServiceException(ErrorCode.E401.code(), "Username already exists");
             }
 
             user = currentUser;
-            user.setUsername(request.getUsername());
+            user.setUsername(username);
             user.setName(request.getName());
             user.setEmail(request.getEmail());
             user.setPhone(request.getPhone());
-            user.setUsername(request.getUsername());
             user.setRole(request.getRole());
             user.setStatus(request.getStatus());
         }
